@@ -19,7 +19,7 @@ myChart.setOption(option);
 
 async function fetchData() {
     try {
-        const res = await fetch("http://backend:8000/crowd_logs");
+        const res = await fetch("http://localhost:8000/crowd_logs");
         const json = await res.json();
 
         const xData = json.map((item: any) => new Date(item.timestamp * 1000).toLocaleTimeString());

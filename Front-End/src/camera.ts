@@ -31,7 +31,7 @@ setInterval(() => {
         console.log([...formData.entries()]); // debugging
 
         try {
-            const res = await fetch("http://backend:8000/upload_frame", {
+            const res = await fetch("http://localhost:8000/upload_frame", {
                 method: "POST",
                 body: formData
             });
