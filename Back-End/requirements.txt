@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+tensorflow
+opencv-python
+numpy
+psycopg2
+python-dotenv
+supabase
+Pillow

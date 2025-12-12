@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="./src/style.css">
+  <style type="text/tailwindcss">
+      @theme {
+        --color-primary-dark: #0f1116;
+        --color-secondary-dark: #1a1d25;
+        --color-primary-green: #197b75;
+        --color-primary-red: #da302a;
+      }
+    </style>
+  <title>Crowd Flow</title>
+</head>
+
+<body>
+  <div id="app" class="flex bg-primary-dark text-white">
+    <!-- <div id="left-side" class="p-2">
+      <div id="icons" class="flex gap-2 items-center">
+        <div class="w-10 h-10">
+          <img src="./chart-js.svg" alt="" class="w-full h-full">
+        </div>
+
+        <h3 class="text-xl text-nowrap">Crowd Flow</h3>
+      </div>
+    </div> -->
+
+    <div id="right-side" class="px-5 py-5 w-full">
+      <p class="text-4xl">CrowdFlow Analytic</p>
+
+      <div id="header" class="flex justify-between items-center">
+        <div id="first-header">
+          <div id="connection-indicator" class="flex gap-5 items-center">
+            <div class="flex gap-2 items-center">
+              <div id="dot" class="bg-primary-red w-2 h-2 rounded-full"></div>
+              <p class="text-[13px] text-gray-500">Camera Disconnected</p>
+            </div>
+
+            <div class="flex gap-2">
+              <p class="text-[13px] text-gray-500">Last Updated: <span>{TIME}</span></p>
+            </div>
+          </div>
+        </div>
+
+        <div id="second-header" class="">
+          <button class="border border-gray-700 rounded-sm p-2 font-semibold cursor-pointer">Export CSV</button>
+        </div>
+      </div>
+
+      <div id="setting-part" class="mt-5 text- p-3 border-2 border-gray-700 rounded-lg text-gray-300 flex gap-5 bg-secondary-dark">
+        <div id="date-range">
+          <p>Date Range</p>
+          <input type="datetime-local" class="p-1 mt-2 border border-gray-700 rounded-sm">
+        </div>
+
+        <div id="granularity">
+          <p>Granularity</p>
+          <details class="dropdown mt-2">
+            <summary role="button">
+              <a class="button">Hour</a>
+            </summary>
+            <ul>
+              <li><a href="#">Hour</a></li>
+              <li><a href="#">Day</a></li>
+              <li><a href="#">Week</a></li>
+              <li><a href="#">Month</a></li>
+            </ul>
+          </details>
+        </div>
+      </div>
+
+      <div id="summary" class="text-gray-900 mt-5 grid grid-cols-4 gap-5">
+        <div id="box 30sec-count" class="rounded-lg bg-secondary-dark text-gray-300 border border-gray-700 p-5">
+          <div class="flex gap-5 items-center justify-between">
+            <p>30-Sec Count</p>
+            <div class="w-5 h-5">
+              <img src="heart-beat.svg" alt="">
+            </div>
+          </div>
+
+          <p class="text-4xl mt-2">{572}</p>
+        </div>
+
+        <div id="box peak-today" class="rounded-lg bg-secondary-dark text-gray-300 border border-gray-700 p-5">
+          <div class="flex gap-5 items-center justify-between">
+            <p>Peak Today</p>
+            <div class="w-5 h-5">
+              <img src="graph.svg" alt="">
+            </div>
+          </div>
+
+          <p class="text-4xl mt-2">{572}</p>
+        </div>
+
+        <div id="box average" class="rounded-lg bg-secondary-dark text-gray-300 border border-gray-700 p-5">
+          <div class="flex gap-5 items-center justify-between">
+            <p>Average Per Hour</p>
+            <div class="w-5 h-5">
+              <img src="people.svg" alt="">
+            </div>
+          </div>
+
+          <p class="text-4xl mt-2">{572}</p>
+        </div>
+
+        <div id="box total" class="rounded-lg bg-secondary-dark text-gray-300 border border-gray-700 p-5">
+          <div class="flex gap-5 items-center justify-between">
+            <p>Total Visitors</p>
+            <div class="w-5 h-5">
+              <img src="heart-beat.svg" alt="">
+            </div>
+          </div>
+
+          <p class="text-4xl mt-2">{572}</p>
+        </div>
+      </div>
+
+      <div id="chart" class="mt-5 w-full h-[40em] bg-secondary-dark p-3 border-2 border-gray-700 rounded-lg">
+
+      </div>
+
+      <div id="live-camera" class="rounded-lg mt-5 bg-secondary-dark text-gray-300 border border-gray-700 p-5">
+        <h2 class="text-2xl">Live Camera</h2>
+        <video id="camera" autoplay playsinline class="w-full h-[640px]"></video>
+
+      </div>
+
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+  <script src="echarts.js"></script>
+  <script src="./src/camera.ts"></script>
+</body>
+
+</html>
