@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Query, Response
 from prediction_worker import model, preprocess, save_to_supabase, connect_to_supabase
 import numpy as np
 import cv2
 import time
+import io
+import csv
 
 app = FastAPI()
 
@@ -61,15 +63,62 @@ async def upload_frame(file: UploadFile = File(...)):
     }
     
 @app.get("/crowd_logs")
-def get_crowd_logs():
+def get_crowd_logs(granularity: str = Query("5sec")):
     conn = connect_to_supabase()
     cur = conn.cursor()
 
-    query = """
-        SELECT timestamp, count 
-        FROM crowd_logs 
-        ORDER BY timestamp ASC;
-    """
+    if granularity == "5sec":
+        query = """
+        SELECT
+            to_timestamp(timestamp)::timestamp(0) AS t,
+            avg(count)::float AS value
+        FROM crowd_logs
+        GROUP BY t
+        ORDER BY t DESC
+        LIMIT 100;
+        """
+
+    elif granularity == "hour":
+        query = """
+        SELECT
+            date_trunc('hour', to_timestamp(timestamp)) AS t,
+            avg(count)::float AS value
+        FROM crowd_logs
+        GROUP BY t
+        ORDER BY t;
+        """
+
+    elif granularity == "day":
+        query = """
+        SELECT
+            date_trunc('day', to_timestamp(timestamp)) AS t,
+            avg(count)::float AS value
+        FROM crowd_logs
+        GROUP BY t
+        ORDER BY t;
+        """
+
+    elif granularity == "week":
+        query = """
+        SELECT
+            date_trunc('week', to_timestamp(timestamp)) AS t,
+            avg(count)::float AS value
+        FROM crowd_logs
+        GROUP BY t
+        ORDER BY t;
+        """
+
+    elif granularity == "month":
+        query = """
+        SELECT
+            date_trunc('month', to_timestamp(timestamp)) AS t,
+            avg(count)::float AS value
+        FROM crowd_logs
+        GROUP BY t
+        ORDER BY t;
+        """
+    else:
+        return {"error": "invalid granularity"}
 
     cur.execute(query)
     rows = cur.fetchall()
@@ -77,10 +126,82 @@ def get_crowd_logs():
     cur.close()
     conn.close()
 
-    # Convert ke JSON-ready format
-    data = [
-        {"timestamp": r[0], "count": float(r[1])} 
+    return [
+        {
+            "time": r[0].isoformat(),
+            "value": float(r[1])
+        }
         for r in rows
     ]
+    
+@app.get("/summary")
+def get_summary():
+    conn = connect_to_supabase()
+    cur = conn.cursor()
 
-    return data
+    cur.execute("""
+        SELECT
+            -- 30 detik terakhir
+            (SELECT COALESCE(AVG(count), 0)
+             FROM crowd_logs
+             WHERE timestamp >= EXTRACT(EPOCH FROM NOW()) - 30),
+
+            -- peak hari ini
+            (SELECT COALESCE(MAX(count), 0)
+             FROM crowd_logs
+             WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))),
+
+            -- average per hour (hari ini)
+            (SELECT COALESCE(AVG(count), 0)
+             FROM crowd_logs
+             WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))),
+
+            -- total hari ini
+            (SELECT COALESCE(SUM(count), 0)
+             FROM crowd_logs
+             WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW())))
+    """)
+
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    return {
+        "last_30_sec": float(row[0]),
+        "peak_today": float(row[1]),
+        "avg_per_hour": float(row[2]),
+        "total_today": float(row[3]),
+    }
+
+@app.get("/export_csv")
+def export_csv():
+    conn = connect_to_supabase()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT timestamp, count
+        FROM crowd_logs
+        ORDER BY timestamp ASC
+    """)
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["time", "count"])
+
+    for ts, count in rows:
+        writer.writerow([
+            time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
+            float(count)
+        ])
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=crowd_logs.csv"
+        }
+    )
