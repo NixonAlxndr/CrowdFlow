@@ -2,7 +2,15 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, UploadFile, File, Query, Response
-from prediction_worker import model, preprocess, save_to_supabase, connect_to_supabase
+from prediction_worker import (
+    session,
+    input_name,
+    output_name,
+    preprocess,
+    save_to_supabase,
+    connect_to_supabase
+)
+
 import numpy as np
 import cv2
 import time
@@ -36,31 +44,32 @@ def extract_count(pred):
 
 @app.post("/upload_frame")
 async def upload_frame(file: UploadFile = File(...)):
-    # Baca file menjadi bytes
     contents = await file.read()
 
-    # Decode ke numpy (OpenCV)
     np_arr = np.frombuffer(contents, np.uint8)
     frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
     if frame is None:
         return {"error": "invalid image"}
 
-    # Preprocess → predict
     x = preprocess(frame)
-    pred = model.predict(x)[0].tolist()
 
-    # Ambil count
-    count_value = extract_count(pred)
+    output = session.run(
+        [output_name],
+        {input_name: x}
+    )
+
+    density_map = output[0]
+    count_value = float(np.sum(density_map))
     timestamp = int(time.time())
 
-    # Simpan ke Supabase
     save_to_supabase(count_value, timestamp)
 
     return {
         "count": count_value,
         "timestamp": timestamp
     }
+
     
 @app.get("/crowd_logs")
 def get_crowd_logs(granularity: str = Query("5sec")):
