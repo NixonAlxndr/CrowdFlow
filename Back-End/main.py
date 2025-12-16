@@ -45,14 +45,13 @@ async def upload_frame(file: UploadFile = File(...)):
     if frame is None:
         return {"error": "invalid image"}
 
-    # 🔥 YOLOv8 prediction
-    count_value = predict_count(frame)
+    count_value, _ = predict_count(frame)  # frame dibuang
     timestamp = int(time.time())
 
-    save_to_supabase(count_value)
+    save_to_supabase(count_value, timestamp)
 
     return {
-        "count": count_value,
+        "count": int(count_value),
         "timestamp": timestamp
     }
 

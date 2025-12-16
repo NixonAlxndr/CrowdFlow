@@ -45,24 +45,35 @@ print(f"[YOLO] Model loaded on {device}")
 # ==============================
 # Prediction (Crowd Count)
 # ==============================
-def predict_count(frame):
+def predict_count(frame, conf=0.5, iou=0.5, draw=False):
     """
-    frame: np.ndarray (BGR, OpenCV)
-    return: float (number of people)
+    frame: numpy image (BGR)
+    draw: True jika ingin bounding box digambar
     """
+    results = model(frame, conf=conf, iou=iou, verbose=False)
+    detections = results[0].boxes
 
-    results = model(
-        frame,
-        conf=0.3,       # confidence threshold
-        iou=0.5,
-        device=device,
-        verbose=False
-    )
+    count_person = 0
 
-    # YOLO crowd count = number of bounding boxes
-    count = len(results[0].boxes)
+    for box in detections:
+        cls_id = int(box.cls[0])  # 0 = person
+        if cls_id == 0:
+            count_person += 1
 
-    return float(count)
+            if draw:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(
+                    frame,
+                    "Person",
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2
+                )
+
+    return count_person, frame
 
 # ==============================
 # Save Result to Supabase
