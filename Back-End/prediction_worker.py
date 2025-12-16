@@ -1,21 +1,26 @@
 import cv2
-import numpy as np
-import psycopg2
 import os
+import psycopg2
+import torch
+from datetime import datetime
 from dotenv import load_dotenv
-import onnxruntime as ort
+from ultralytics import YOLO
+import time
 
+# ==============================
+# Load ENV
+# ==============================
 load_dotenv()
 
-# ==============================
-# Supabase (PostgreSQL)
-# ==============================
 DB_USER = os.getenv("USER")
 DB_PASSWORD = os.getenv("PASSWORD")
 DB_HOST = os.getenv("HOST")
 DB_PORT = os.getenv("PORT")
 DB_NAME = os.getenv("DBNAME")
 
+# ==============================
+# Supabase Connection
+# ==============================
 def connect_to_supabase():
     return psycopg2.connect(
         user=DB_USER,
@@ -26,45 +31,46 @@ def connect_to_supabase():
         connect_timeout=5
     )
 
-session = ort.InferenceSession(
-    "./models/yolov8n.onnx",
-    providers=["CPUExecutionProvider"]
-)
+# ==============================
+# Load YOLOv8 (.pt)
+# ==============================
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-input_name = session.get_inputs()[0].name
-output_name = session.get_outputs()[0].name
+model = YOLO("./models/yolo11s.pt")
+model.to(device)
+model.eval()
 
-print("[ONNX] Input :", input_name, session.get_inputs()[0].shape)
-print("[ONNX] Output:", output_name, session.get_outputs()[0].shape)
+print(f"[YOLO] Model loaded on {device}")
 
-def preprocess(frame):
-    img = cv2.resize(frame, (640, 640))
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = img.astype(np.float32) / 255.0
-
-    # HWC -> CHW
-    img = np.transpose(img, (2, 0, 1))
-
-    return np.expand_dims(img, axis=0)
-
+# ==============================
+# Prediction (Crowd Count)
+# ==============================
 def predict_count(frame):
-    x = preprocess(frame)
+    """
+    frame: np.ndarray (BGR, OpenCV)
+    return: float (number of people)
+    """
 
-    output = session.run(
-        [output_name],
-        {input_name: x}
+    results = model(
+        frame,
+        conf=0.3,       # confidence threshold
+        iou=0.5,
+        device=device,
+        verbose=False
     )
 
-    density_map = output[0]
+    # YOLO crowd count = number of bounding boxes
+    count = len(results[0].boxes)
 
-    # MCNN count = sum of density map
-    count = float(np.sum(density_map))
-    return count
+    return float(count)
 
 # ==============================
-# Save to Supabase
+# Save Result to Supabase
 # ==============================
-def save_to_supabase(count_value, timestamp):
+def save_to_supabase(count_value, timestamp=None):
+    if timestamp is None:
+        timestamp = int(time.time())  # epoch seconds
+
     try:
         conn = connect_to_supabase()
         cur = conn.cursor()
@@ -74,7 +80,7 @@ def save_to_supabase(count_value, timestamp):
             INSERT INTO crowd_logs (count, timestamp)
             VALUES (%s, %s)
             """,
-            (count_value, timestamp)
+            (float(count_value), int(timestamp))
         )
 
         conn.commit()
@@ -85,3 +91,24 @@ def save_to_supabase(count_value, timestamp):
 
     except Exception as e:
         print("[SUPABASE] ERROR:", e)
+
+
+# ==============================
+# Example Usage (for testing)
+# ==============================
+if __name__ == "__main__":
+    cap = cv2.VideoCapture(0)
+
+    if not cap.isOpened():
+        print("❌ Camera not accessible")
+        exit()
+
+    ret, frame = cap.read()
+    cap.release()
+
+    if ret:
+        count = predict_count(frame)
+        print(f"[PREDICTION] Crowd count: {count}")
+        save_to_supabase(count)
+    else:
+        print("❌ Failed to read frame")

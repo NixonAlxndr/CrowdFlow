@@ -1,47 +1,40 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, UploadFile, File, Query, Response
-from prediction_worker import (
-    session,
-    input_name,
-    output_name,
-    preprocess,
-    save_to_supabase,
-    connect_to_supabase
-)
-
+from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 import cv2
 import time
 import io
 import csv
 
+from prediction_worker import (
+    predict_count,
+    save_to_supabase,
+    connect_to_supabase
+)
+
 app = FastAPI()
 
-# Izinkan origin mana saja (untuk testing)
+# ==============================
+# CORS (dev-friendly)
+# ==============================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ganti "*" dengan domain tertentu kalau mau
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ==============================
+# Health Check
+# ==============================
 @app.get("/")
 def home():
     return {"status": "running"}
 
-# ----- Pydantic model untuk request body -----
-class CrowdRecord(BaseModel):
-    count: int
-    timestamp: int   # epoch time (detik)
-
-def extract_count(pred):
-    while isinstance(pred, list):
-        pred = pred[0]
-    return float(pred)
-
+# ==============================
+# Upload Frame → Predict → Save
+# ==============================
 @app.post("/upload_frame")
 async def upload_frame(file: UploadFile = File(...)):
     contents = await file.read()
@@ -52,25 +45,20 @@ async def upload_frame(file: UploadFile = File(...)):
     if frame is None:
         return {"error": "invalid image"}
 
-    x = preprocess(frame)
-
-    output = session.run(
-        [output_name],
-        {input_name: x}
-    )
-
-    density_map = output[0]
-    count_value = float(np.sum(density_map))
+    # 🔥 YOLOv8 prediction
+    count_value = predict_count(frame)
     timestamp = int(time.time())
 
-    save_to_supabase(count_value, timestamp)
+    save_to_supabase(count_value)
 
     return {
         "count": count_value,
         "timestamp": timestamp
     }
 
-    
+# ==============================
+# Crowd Logs (Graph)
+# ==============================
 @app.get("/crowd_logs")
 def get_crowd_logs(granularity: str = Query("5sec")):
     conn = connect_to_supabase()
@@ -142,7 +130,10 @@ def get_crowd_logs(granularity: str = Query("5sec")):
         }
         for r in rows
     ]
-    
+
+# ==============================
+# Summary Card
+# ==============================
 @app.get("/summary")
 def get_summary():
     conn = connect_to_supabase()
@@ -150,22 +141,18 @@ def get_summary():
 
     cur.execute("""
         SELECT
-            -- 30 detik terakhir
             (SELECT COALESCE(AVG(count), 0)
              FROM crowd_logs
              WHERE timestamp >= EXTRACT(EPOCH FROM NOW()) - 30),
 
-            -- peak hari ini
             (SELECT COALESCE(MAX(count), 0)
              FROM crowd_logs
              WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))),
 
-            -- average per hour (hari ini)
             (SELECT COALESCE(AVG(count), 0)
              FROM crowd_logs
              WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))),
 
-            -- total hari ini
             (SELECT COALESCE(SUM(count), 0)
              FROM crowd_logs
              WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW())))
@@ -182,6 +169,9 @@ def get_summary():
         "total_today": float(row[3]),
     }
 
+# ==============================
+# Export CSV
+# ==============================
 @app.get("/export_csv")
 def export_csv():
     conn = connect_to_supabase()
