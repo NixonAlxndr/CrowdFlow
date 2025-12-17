@@ -5,6 +5,8 @@ import cv2
 import time
 import io
 import csv
+from datetime import datetime
+import pytz
 
 from prediction_worker import (
     predict_count,
@@ -14,9 +16,6 @@ from prediction_worker import (
 
 app = FastAPI()
 
-# ==============================
-# CORS (dev-friendly)
-# ==============================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,16 +24,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==============================
-# Health Check
-# ==============================
 @app.get("/")
 def home():
     return {"status": "running"}
 
-# ==============================
-# Upload Frame → Predict → Save
-# ==============================
 @app.post("/upload_frame")
 async def upload_frame(file: UploadFile = File(...)):
     contents = await file.read()
@@ -45,19 +38,18 @@ async def upload_frame(file: UploadFile = File(...)):
     if frame is None:
         return {"error": "invalid image"}
 
-    count_value, _ = predict_count(frame)  # frame dibuang
-    timestamp = int(time.time())
+    count_value, _ = predict_count(frame) 
+    tz = pytz.timezone("Asia/Jakarta")
+    now_wib = datetime.now(tz)
+    timestamp_wib = int(now_wib.timestamp())
 
-    save_to_supabase(count_value, timestamp)
+    save_to_supabase(count_value, timestamp_wib)
 
     return {
         "count": int(count_value),
-        "timestamp": timestamp
+        "timestamp": timestamp_wib
     }
-
-# ==============================
-# Crowd Logs (Graph)
-# ==============================
+    
 @app.get("/crowd_logs")
 def get_crowd_logs(granularity: str = Query("5sec")):
     conn = connect_to_supabase()
@@ -130,9 +122,6 @@ def get_crowd_logs(granularity: str = Query("5sec")):
         for r in rows
     ]
 
-# ==============================
-# Summary Card
-# ==============================
 @app.get("/summary")
 def get_summary():
     conn = connect_to_supabase()
@@ -140,21 +129,35 @@ def get_summary():
 
     cur.execute("""
         SELECT
-            (SELECT COALESCE(AVG(count), 0)
-             FROM crowd_logs
-             WHERE timestamp >= EXTRACT(EPOCH FROM NOW()) - 30),
+            -- realtime last 5 seconds (latest value)
+            COALESCE((
+                SELECT count
+                FROM crowd_logs
+                WHERE timestamp >= EXTRACT(EPOCH FROM NOW()) - 5
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ), 0),
 
-            (SELECT COALESCE(MAX(count), 0)
-             FROM crowd_logs
-             WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))),
+            -- peak today
+            COALESCE((
+                SELECT MAX(count)
+                FROM crowd_logs
+                WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))
+            ), 0),
 
-            (SELECT COALESCE(AVG(count), 0)
-             FROM crowd_logs
-             WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))),
+            -- avg today
+            COALESCE((
+                SELECT AVG(count)
+                FROM crowd_logs
+                WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))
+            ), 0),
 
-            (SELECT COALESCE(SUM(count), 0)
-             FROM crowd_logs
-             WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW())))
+            -- lowest today
+            COALESCE((
+                SELECT MIN(count)
+                FROM crowd_logs
+                WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))
+            ), 0)
     """)
 
     row = cur.fetchone()
@@ -162,15 +165,12 @@ def get_summary():
     conn.close()
 
     return {
-        "last_30_sec": float(row[0]),
+        "five_sec": float(row[0]),
         "peak_today": float(row[1]),
         "avg_per_hour": float(row[2]),
-        "total_today": float(row[3]),
+        "lowest_today": float(row[3]),
     }
 
-# ==============================
-# Export CSV
-# ==============================
 @app.get("/export_csv")
 def export_csv():
     conn = connect_to_supabase()

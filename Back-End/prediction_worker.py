@@ -7,9 +7,6 @@ from dotenv import load_dotenv
 from ultralytics import YOLO
 import time
 
-# ==============================
-# Load ENV
-# ==============================
 load_dotenv()
 
 DB_USER = os.getenv("USER")
@@ -18,9 +15,6 @@ DB_HOST = os.getenv("HOST")
 DB_PORT = os.getenv("PORT")
 DB_NAME = os.getenv("DBNAME")
 
-# ==============================
-# Supabase Connection
-# ==============================
 def connect_to_supabase():
     return psycopg2.connect(
         user=DB_USER,
@@ -31,9 +25,6 @@ def connect_to_supabase():
         connect_timeout=5
     )
 
-# ==============================
-# Load YOLOv8 (.pt)
-# ==============================
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 model = YOLO("./models/yolo11s.pt")
@@ -42,21 +33,14 @@ model.eval()
 
 print(f"[YOLO] Model loaded on {device}")
 
-# ==============================
-# Prediction (Crowd Count)
-# ==============================
 def predict_count(frame, conf=0.5, iou=0.5, draw=False):
-    """
-    frame: numpy image (BGR)
-    draw: True jika ingin bounding box digambar
-    """
     results = model(frame, conf=conf, iou=iou, verbose=False)
     detections = results[0].boxes
 
     count_person = 0
 
     for box in detections:
-        cls_id = int(box.cls[0])  # 0 = person
+        cls_id = int(box.cls[0]) 
         if cls_id == 0:
             count_person += 1
 
@@ -75,9 +59,6 @@ def predict_count(frame, conf=0.5, iou=0.5, draw=False):
 
     return count_person, frame
 
-# ==============================
-# Save Result to Supabase
-# ==============================
 def save_to_supabase(count_value, timestamp=None):
     if timestamp is None:
         timestamp = int(time.time())  # epoch seconds
@@ -103,10 +84,6 @@ def save_to_supabase(count_value, timestamp=None):
     except Exception as e:
         print("[SUPABASE] ERROR:", e)
 
-
-# ==============================
-# Example Usage (for testing)
-# ==============================
 if __name__ == "__main__":
     cap = cv2.VideoCapture(0)
 

@@ -17,6 +17,35 @@
   --dropdown-color: black;
 }
 
+/* hilangkan marker bawaan */
+summary::-webkit-details-marker {
+  display: none;
+}
+summary::marker {
+  display: none;
+}
+
+/* jadikan satu baris */
+.dropdown-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+}
+
+/* animasi caret */
+.caret {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+details[open] .caret {
+  transform: rotate(180deg);
+}
+
+
 
 /* Boring button styles */
 a.button {
