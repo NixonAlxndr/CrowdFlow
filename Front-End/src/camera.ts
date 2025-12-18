@@ -28,8 +28,6 @@ setInterval(() => {
         const formData = new FormData();
         formData.append("file", blob, "frame.jpg");
 
-        console.log([...formData.entries()]); // debugging
-
         try {
             const res = await fetch("http://localhost:8000/upload_frame", {
                 method: "POST",
@@ -37,9 +35,8 @@ setInterval(() => {
             });
 
             const json = await res.json();
-            console.log(json);
         } catch (err) {
             console.error("Upload error:", err);
         }
     }, "image/jpeg");
-}, 10000);
+}, 5000);

@@ -57,6 +57,7 @@ a.button {
   border: none;
   font-size: 1rem;
   cursor: pointer;
+  border-color: transparent;
 }
 
 a.button:active {

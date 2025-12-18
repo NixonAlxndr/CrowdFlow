@@ -35,14 +35,15 @@ const option = {
 
 myChart.setOption(option);
 
-function toWIB(timestamp: number): string {
-    // jika timestamp > 10^12 kemungkinan sudah ms
-    if (timestamp < 1e12) timestamp *= 1000; 
-    const date = new Date(timestamp);
-    date.setHours(date.getUTCHours() + 7); // WIB
-    return date.toLocaleTimeString('id-ID', { hour12: false });
-}
+function toWIB(time: string): string {
+    // paksa dianggap UTC
+    const dateUtc = new Date(time + 'Z');
 
+    return dateUtc.toLocaleTimeString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        hour12: false
+    });
+}
 
 async function fetchData(granularity = "5sec") {
     try {
@@ -68,7 +69,7 @@ async function fetchData(granularity = "5sec") {
                         lineStyle: {
                             type: "dashed",
                             width: 2,
-                            color: "#fff"
+                            color: "#000"
                         },
                         data: [{ yAxis: avgHourValue }]
                     } : undefined

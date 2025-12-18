@@ -61,7 +61,7 @@ def predict_count(frame, conf=0.5, iou=0.5, draw=False):
 
 def save_to_supabase(count_value, timestamp=None):
     if timestamp is None:
-        timestamp = int(time.time())  # epoch seconds
+        timestamp = int(time.time())
 
     try:
         conn = connect_to_supabase()
