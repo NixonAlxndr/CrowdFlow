@@ -86,11 +86,12 @@ async function fetchSummary() {
         const res = await fetch("http://localhost:8000/summary");
         const data = await res.json();
 
-        document.getElementById("last30")!.textContent = data.five_sec;
+        document.getElementById("last30")!.textContent = data.five_sec.toFixed(3);
         document.getElementById("peakToday")!.textContent = data.peak_today;
         avgHourValue = data.avg_per_hour;
         document.getElementById("avgHour")!.textContent = avgHourValue!.toFixed(3);
         document.getElementById("totalToday")!.textContent = data.lowest_today;
+        document.getElementById("avg_yesterday")!.textContent = data.avg_yesterday.toFixed(3);
     } catch (e) {
         console.error("Summary fetch error", e);
     }

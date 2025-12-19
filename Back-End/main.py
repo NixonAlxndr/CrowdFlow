@@ -129,13 +129,11 @@ def get_summary():
 
     cur.execute("""
         SELECT
-            -- realtime last 5 seconds (latest value)
+            -- Rata-rata 10 menit terakhir
             COALESCE((
-                SELECT count
+                SELECT AVG(count)
                 FROM crowd_logs
-                WHERE timestamp >= EXTRACT(EPOCH FROM NOW()) - 5
-                ORDER BY timestamp DESC
-                LIMIT 1
+                WHERE timestamp >= EXTRACT(EPOCH FROM NOW()) - 600
             ), 0),
 
             -- peak today
@@ -157,6 +155,16 @@ def get_summary():
                 SELECT MIN(count)
                 FROM crowd_logs
                 WHERE timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))
+            ), 0),
+            
+            -- 5. Avg Yesterday (rata-rata kemarin penuh)
+            COALESCE((
+                SELECT AVG(count)
+                FROM crowd_logs
+                WHERE 
+                    timestamp >= EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW() - INTERVAL '1 day'))
+                    AND 
+                    timestamp < EXTRACT(EPOCH FROM DATE_TRUNC('day', NOW()))
             ), 0)
     """)
 
@@ -169,6 +177,7 @@ def get_summary():
         "peak_today": float(row[1]),
         "avg_per_hour": float(row[2]),
         "lowest_today": float(row[3]),
+        "avg_yesterday": float(row[4])
     }
 
 @app.get("/export_csv")
